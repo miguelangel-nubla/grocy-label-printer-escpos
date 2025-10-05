@@ -1,9 +1,9 @@
-name: Release
+name: Manual Release
 
 on:
   push:
     tags:
-      - 'v*'
+      - 'manual-v*'
 
 jobs:
   pypi-publish:
