@@ -16,6 +16,30 @@ from escpos.printer import Network
 from flask import Flask, Response, jsonify, request
 from PIL import Image, ImageDraw, ImageFont
 
+# Localization strings
+TRANSLATIONS = {
+    "en": {
+        "expires": "Expires",
+        "purchased": "Purchased",
+    },
+    "es": {
+        "expires": "Caduca",
+        "purchased": "Comprado",
+    },
+    "fr": {
+        "expires": "Expire",
+        "purchased": "Acheté",
+    },
+    "de": {
+        "expires": "Verfällt",
+        "purchased": "Gekauft",
+    },
+    "it": {
+        "expires": "Scade",
+        "purchased": "Acquistato",
+    },
+}
+
 
 class GrocyThermalServer:
     """Grocy thermal label server for ESC/P printers."""
@@ -25,6 +49,7 @@ class GrocyThermalServer:
         printer_host: Optional[str] = None,
         printer_port: Optional[int] = None,
         label_width: Optional[int] = None,
+        language: Optional[str] = None,
     ) -> None:
         """Initialize the thermal server with printer configuration."""
         self.printer_host = printer_host or os.getenv(
@@ -40,6 +65,7 @@ class GrocyThermalServer:
             if label_width is not None
             else int(os.getenv("LABEL_WIDTH", "384"))
         )
+        self.language = language or os.getenv("LANGUAGE", "en")
         self.printer: Optional[Network] = None
 
         # Use pip-installed Roboto fonts with much larger sizes
@@ -160,6 +186,13 @@ class GrocyThermalServer:
         except (ValueError, TypeError):
             return False
 
+    def _translate(self, key: str) -> str:
+        """Get translated string for the current language."""
+        language = self.language or "en"
+        return TRANSLATIONS.get(language, TRANSLATIONS["en"]).get(
+            key, TRANSLATIONS["en"][key]
+        )
+
     def create_qr_code(
         self, data: str, size: int = 240
     ) -> Optional[Image.Image]:
@@ -244,9 +277,9 @@ class GrocyThermalServer:
         if purchased and has_real_expiry:
             lines.append(f"{purchased} → {best_before}")
         elif has_real_expiry:
-            lines.append(f"Expires: {best_before}")
+            lines.append(f"{self._translate('expires')}: {best_before}")
         elif purchased:
-            lines.append(f"Purchased: {purchased}")
+            lines.append(f"{self._translate('purchased')}: {purchased}")
 
         return lines, name_line_count
 
