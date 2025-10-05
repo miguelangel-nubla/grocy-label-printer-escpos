@@ -23,12 +23,12 @@ RUN apt-get update && \
 # Set work directory
 WORKDIR /app
 
-# Copy requirements first for better caching
-COPY pyproject.toml ./
-RUN pip install -e .
-
-# Copy source code
+# Copy source code and requirements
+COPY pyproject.toml README.md ./
 COPY src/ ./src/
+
+# Install the package
+RUN pip install -e .
 
 # Create log directory
 RUN mkdir -p /app/logs && chown -R appuser:appuser /app
