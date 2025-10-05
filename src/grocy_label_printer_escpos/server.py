@@ -296,7 +296,21 @@ class GrocyThermalServer:
         qr_size: int,
     ) -> int:
         """Calculate the total height needed for the label."""
-        text_height = len(lines) * line_height + padding
+        # Calculate actual font height for proper bottom padding
+        temp_img = Image.new("L", (1, 1))
+        temp_draw = ImageDraw.Draw(temp_img)
+
+        # Get the height of both fonts to ensure we have enough space
+        large_bbox = temp_draw.textbbox((0, 0), "Tgyj", font=self.font_large)
+        small_bbox = temp_draw.textbbox((0, 0), "Tgyj", font=self.font_small)
+
+        large_font_height = large_bbox[3] - large_bbox[1]
+        small_font_height = small_bbox[3] - small_bbox[1]
+
+        # Use the larger font height as bottom padding for complete rendering
+        bottom_padding = int(max(large_font_height, small_font_height))
+
+        text_height = len(lines) * line_height + padding + bottom_padding
         if params["barcode"]:
             return qr_size + padding * 2 + text_height
         else:
