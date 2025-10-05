@@ -8,6 +8,7 @@ Receives Grocy label requests and prints to ESC/P thermal printer.
 import io
 import logging
 import os
+from typing import Any, Dict, List, Optional, Tuple
 
 import qrcode
 from escpos.printer import Network
@@ -18,16 +19,27 @@ from PIL import Image, ImageDraw, ImageFont
 class GrocyThermalServer:
     """Grocy thermal label server for ESC/P printers."""
 
-    def __init__(self, printer_host=None, printer_port=None, label_width=None):
+    def __init__(
+        self,
+        printer_host: Optional[str] = None,
+        printer_port: Optional[int] = None,
+        label_width: Optional[int] = None,
+    ) -> None:
         """Initialize the thermal server with printer configuration."""
         self.printer_host = printer_host or os.getenv(
             "PRINTER_HOST", "192.168.1.100"
         )
         self.printer_port = int(
-            printer_port or os.getenv("PRINTER_PORT", "9100")
+            printer_port
+            if printer_port is not None
+            else int(os.getenv("PRINTER_PORT", "9100"))
         )
-        self.label_width = int(label_width or os.getenv("LABEL_WIDTH", "384"))
-        self.printer = None
+        self.label_width = int(
+            label_width
+            if label_width is not None
+            else int(os.getenv("LABEL_WIDTH", "384"))
+        )
+        self.printer: Optional[Network] = None
 
         # Use pip-installed Roboto fonts with much larger sizes
         import font_roboto
@@ -35,7 +47,7 @@ class GrocyThermalServer:
         self.font_large = ImageFont.truetype(font_roboto.RobotoBold, 48)
         self.font_small = ImageFont.truetype(font_roboto.RobotoBold, 32)
 
-    def connect_printer(self):
+    def connect_printer(self) -> bool:
         """Connect to thermal printer"""
         try:
             self.printer = Network(
@@ -49,7 +61,7 @@ class GrocyThermalServer:
             logging.error(f"Printer connection failed: {e}")
             return False
 
-    def extract_grocy_params(self, data):
+    def extract_grocy_params(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """Extract parameters from Grocy request data"""
         logging.info(f"Received Grocy data: {data}")
 
@@ -118,7 +130,9 @@ class GrocyThermalServer:
             "unit_name": unit_name,
         }
 
-    def _get_unit_name(self, quantity_unit_stock, amount):
+    def _get_unit_name(
+        self, quantity_unit_stock: Dict[str, Any], amount: Optional[str]
+    ) -> str:
         """Get appropriate unit name (singular/plural)"""
         if not quantity_unit_stock.get("name"):
             return ""
@@ -131,7 +145,9 @@ class GrocyThermalServer:
         except (ValueError, TypeError):
             return str(quantity_unit_stock.get("name", ""))
 
-    def create_qr_code(self, data, size=240):
+    def create_qr_code(
+        self, data: str, size: int = 240
+    ) -> Optional[Image.Image]:
         """Create QR code image - double size"""
         if not data:
             return None
@@ -146,10 +162,14 @@ class GrocyThermalServer:
         qr.make(fit=True)
 
         qr_img = qr.make_image(fill_color="black", back_color="white")
-        qr_img = qr_img.resize((size, size), Image.LANCZOS)
-        return qr_img
+        # Handle both PIL and PyPNG images
+        if hasattr(qr_img, "resize"):
+            qr_img = qr_img.resize((size, size), Image.Resampling.LANCZOS)
+        return qr_img  # type: ignore[return-value]
 
-    def _wrap_text(self, text, font, max_width):
+    def _wrap_text(
+        self, text: str, font: ImageFont.FreeTypeFont, max_width: int
+    ) -> List[str]:
         """Wrap text to fit within max_width using the given font."""
         words = text.split()
         lines = []
@@ -179,7 +199,9 @@ class GrocyThermalServer:
 
         return lines
 
-    def _build_text_lines(self, params, padding):
+    def _build_text_lines(
+        self, params: Dict[str, Any], padding: int
+    ) -> Tuple[List[str], int]:
         """Build text lines for the label."""
         lines = []
         name_line_count = 0
@@ -204,8 +226,13 @@ class GrocyThermalServer:
         return lines, name_line_count
 
     def _calculate_label_height(
-        self, params, lines, line_height, padding, qr_size
-    ):
+        self,
+        params: Dict[str, Any],
+        lines: List[str],
+        line_height: int,
+        padding: int,
+        qr_size: int,
+    ) -> int:
         """Calculate the total height needed for the label."""
         text_height = len(lines) * line_height + padding
         if params["barcode"]:
@@ -213,7 +240,13 @@ class GrocyThermalServer:
         else:
             return text_height + padding
 
-    def _add_qr_code(self, img, params, qr_size, current_y):
+    def _add_qr_code(
+        self,
+        img: Image.Image,
+        params: Dict[str, Any],
+        qr_size: int,
+        current_y: int,
+    ) -> int:
         """Add QR code to the image if barcode exists."""
         if params["barcode"]:
             qr_img = self.create_qr_code(params["barcode"], qr_size)
@@ -224,8 +257,13 @@ class GrocyThermalServer:
         return current_y
 
     def _add_text_lines(
-        self, draw, lines, name_line_count, current_y, line_height
-    ):
+        self,
+        draw: ImageDraw.ImageDraw,
+        lines: List[str],
+        name_line_count: int,
+        current_y: int,
+        line_height: int,
+    ) -> None:
         """Add text lines to the label."""
         for i, line in enumerate(lines):
             # Use large font for all name lines, small font for other info
@@ -246,7 +284,7 @@ class GrocyThermalServer:
             else:
                 current_y += line_height
 
-    def create_label_image(self, params):
+    def create_label_image(self, params: Dict[str, Any]) -> Image.Image:
         """Create label image from Grocy parameters.
 
         QR code first, then text below.
@@ -280,7 +318,7 @@ class GrocyThermalServer:
 
         return img
 
-    def print_label(self, params):
+    def print_label(self, params: Dict[str, Any]) -> bool:
         """Print label to thermal printer"""
         logging.info(f"Attempting to print label for: {params['name']}")
 
@@ -294,15 +332,16 @@ class GrocyThermalServer:
             logging.info(f"Created label image: {label_img.size}")
 
             # Print to thermal printer
-            self.printer.image(label_img)
-            self.printer.text("\n\n\n\n")  # Add some spacing after label
+            if self.printer is not None:
+                self.printer.image(label_img)
+                self.printer.text("\n\n\n\n")  # Add some spacing after label
 
-            # Feed paper to advance label past the cutter
-            # self.printer.ln(3)  # Feed 3 lines to move past cutter
+                # Feed paper to advance label past the cutter
+                # self.printer.ln(3)  # Feed 3 lines to move past cutter
 
-            # Close the printer connection to flush the buffer
-            if hasattr(self.printer, "close"):
-                self.printer.close()
+                # Close the printer connection to flush the buffer
+                if hasattr(self.printer, "close"):
+                    self.printer.close()
 
             logging.info(
                 f"Successfully sent label to printer for: {params['name']}"
@@ -338,8 +377,8 @@ logging.basicConfig(
 )
 
 
-@app.before_request
-def log_requests():
+@app.before_request  # type: ignore[misc]
+def log_requests() -> None:
     """Log incoming requests"""
     if request.method == "POST":
         logging.info(f"POST request to {request.path}")
@@ -347,8 +386,8 @@ def log_requests():
             logging.info(f"JSON data: {request.get_json()}")
 
 
-@app.route("/")
-def home():
+@app.route("/")  # type: ignore[misc]
+def home() -> Response:
     """Status endpoint"""
     return jsonify(
         {
@@ -359,8 +398,8 @@ def home():
     )
 
 
-@app.route("/print", methods=["POST"])
-def print_label():
+@app.route("/print", methods=["POST"])  # type: ignore[misc]
+def print_label() -> Response:
     """Print label endpoint - compatible with Grocy"""
     try:
         logging.info("Print endpoint called")
@@ -401,8 +440,8 @@ def print_label():
         return Response(f"Error: {e}", 500)
 
 
-@app.route("/image", methods=["GET", "POST"])
-def preview_image():
+@app.route("/image", methods=["GET", "POST"])  # type: ignore[misc]
+def preview_image() -> Response:
     """Preview label image endpoint"""
     try:
         # Get data from request
@@ -435,8 +474,8 @@ def preview_image():
         return Response(f"Error: {e}", 500)
 
 
-@app.route("/test", methods=["GET"])
-def test_label():
+@app.route("/test", methods=["GET"])  # type: ignore[misc]
+def test_label() -> Response:
     """Test endpoint with sample data"""
     test_data = {
         "product": "Test Product",
@@ -458,7 +497,7 @@ def test_label():
         return jsonify({"status": "error", "message": "Print failed"}), 500
 
 
-def main():
+def main() -> None:
     """Main entry point for the CLI script"""
     host = os.getenv("SERVER_HOST", "0.0.0.0")  # nosec B104
     port = int(os.getenv("SERVER_PORT", "5000"))

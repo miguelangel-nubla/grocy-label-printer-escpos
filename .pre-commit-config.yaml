@@ -31,8 +31,7 @@ repos:
     rev: v1.4.1
     hooks:
       - id: mypy
-        additional_dependencies: [types-requests]
-        args: [--ignore-missing-imports, --no-strict-optional, --allow-untyped-defs]
+        additional_dependencies: [types-requests, types-qrcode]
 
   - repo: https://github.com/pycqa/bandit
     rev: 1.7.5
