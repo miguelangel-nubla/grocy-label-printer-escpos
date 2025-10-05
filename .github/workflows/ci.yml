@@ -62,6 +62,8 @@ jobs:
       run: bandit -r src/ -f json
 
     - name: Check dependencies with safety
+      env:
+        SAFETY_API_KEY: ${{ secrets.SAFETY_API_KEY }}
       run: safety scan
 
   build:

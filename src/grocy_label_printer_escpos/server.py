@@ -179,17 +179,8 @@ class GrocyThermalServer:
 
         return lines
 
-    def create_label_image(self, params):
-        """Create label image from Grocy parameters.
-
-        QR code first, then text below.
-        """
-        # Calculate label dimensions
-        line_height = 35
-        padding = 15
-        qr_size = 240  # Double size QR code
-
-        # Count lines needed
+    def _build_text_lines(self, params, padding):
+        """Build text lines for the label."""
         lines = []
         name_line_count = 0
         if params["name"]:
@@ -210,28 +201,32 @@ class GrocyThermalServer:
         if params["purchased_date"]:
             lines.append(f"Purchased: {params['purchased_date']}")
 
-        # Calculate image height - QR first, then text below
+        return lines, name_line_count
+
+    def _calculate_label_height(
+        self, params, lines, line_height, padding, qr_size
+    ):
+        """Calculate the total height needed for the label."""
         text_height = len(lines) * line_height + padding
         if params["barcode"]:
-            label_height = qr_size + padding * 2 + text_height
+            return qr_size + padding * 2 + text_height
         else:
-            label_height = text_height + padding
+            return text_height + padding
 
-        # Create image
-        img = Image.new("L", (self.label_width, label_height), color=255)
-        draw = ImageDraw.Draw(img)
-
-        current_y = padding
-
-        # Add QR code at top center if barcode exists
+    def _add_qr_code(self, img, params, qr_size, current_y):
+        """Add QR code to the image if barcode exists."""
         if params["barcode"]:
             qr_img = self.create_qr_code(params["barcode"], qr_size)
             if qr_img:
                 qr_x = (self.label_width - qr_size) // 2  # Center the QR code
                 img.paste(qr_img, (qr_x, current_y))
-                current_y += qr_size + padding
+                return current_y + qr_size + 15  # padding
+        return current_y
 
-        # Add text lines below QR code
+    def _add_text_lines(
+        self, draw, lines, name_line_count, current_y, line_height
+    ):
+        """Add text lines to the label."""
         for i, line in enumerate(lines):
             # Use large font for all name lines, small font for other info
             font = self.font_large if i < name_line_count else self.font_small
@@ -250,6 +245,38 @@ class GrocyThermalServer:
                 )  # Extra spacing between name lines
             else:
                 current_y += line_height
+
+    def create_label_image(self, params):
+        """Create label image from Grocy parameters.
+
+        QR code first, then text below.
+        """
+        # Calculate label dimensions
+        line_height = 35
+        padding = 15
+        qr_size = 240  # Double size QR code
+
+        # Build text lines
+        lines, name_line_count = self._build_text_lines(params, padding)
+
+        # Calculate image height
+        label_height = self._calculate_label_height(
+            params, lines, line_height, padding, qr_size
+        )
+
+        # Create image
+        img = Image.new("L", (self.label_width, label_height), color=255)
+        draw = ImageDraw.Draw(img)
+
+        current_y = padding
+
+        # Add QR code at top center if barcode exists
+        current_y = self._add_qr_code(img, params, qr_size, current_y)
+
+        # Add text lines below QR code
+        self._add_text_lines(
+            draw, lines, name_line_count, current_y, line_height
+        )
 
         return img
 
