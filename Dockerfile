@@ -17,6 +17,7 @@ RUN apt-get update && \
         libc6-dev \
         libffi-dev \
         libssl-dev \
+        curl \
         && \
     rm -rf /var/lib/apt/lists/*
 
@@ -43,5 +44,5 @@ EXPOSE 5000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:5000/ || exit 1
 
-# Run the application
-CMD ["python", "-m", "grocy_label_printer_escpos.server"]
+# Run the application with gunicorn
+CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "2", "--timeout", "120", "--access-logfile", "-", "--error-logfile", "-", "grocy_label_printer_escpos.server:app"]

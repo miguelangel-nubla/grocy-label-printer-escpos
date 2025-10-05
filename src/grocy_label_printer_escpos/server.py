@@ -499,7 +499,7 @@ def test_label() -> Union[Response, Tuple[Response, int]]:
 
 
 def main() -> None:
-    """Main entry point for the CLI script"""
+    """Main entry point for the CLI script - for development use only"""
     host = os.getenv("SERVER_HOST", "0.0.0.0")  # nosec B104
     port = int(os.getenv("SERVER_PORT", "5000"))
     debug = os.getenv("DEBUG", "False").lower() == "true"
@@ -515,7 +515,8 @@ def main() -> None:
     print("  GET /test - Print test label")
     print("  GET / - Server status")
     server_url = f"http://{host}:{port}"  # noqa: E231
-    print(f"\nStarting server on {server_url}")
+    print(f"\nStarting Flask development server on {server_url}")
+    print("Note: For production, use gunicorn instead")
 
     app.run(host=host, port=port, debug=debug)
 
