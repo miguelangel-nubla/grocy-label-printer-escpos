@@ -28,10 +28,11 @@ repos:
         args: [--max-complexity=10]
 
   - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.4.1
+    rev: v1.18.2
     hooks:
       - id: mypy
-        additional_dependencies: [types-requests, types-qrcode]
+        additional_dependencies: [types-requests, types-qrcode, pillow, qrcode, flask]
+        args: [--config-file=pyproject.toml]
 
   - repo: https://github.com/pycqa/bandit
     rev: 1.7.5

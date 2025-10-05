@@ -8,7 +8,7 @@ Receives Grocy label requests and prints to ESC/P thermal printer.
 import io
 import logging
 import os
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import qrcode
 from escpos.printer import Network
@@ -113,11 +113,12 @@ class GrocyThermalServer:
         )
 
         # Extract unit info
-        quantity_unit_stock = (
+        quantity_unit_stock_raw = (
             data.get("quantity_unit_stock")
             if isinstance(data.get("quantity_unit_stock"), dict)
             else data.get("details", {}).get("quantity_unit_stock", {})
         )
+        quantity_unit_stock = quantity_unit_stock_raw or {}
 
         unit_name = self._get_unit_name(quantity_unit_stock, amount)
 
@@ -377,7 +378,7 @@ logging.basicConfig(
 )
 
 
-@app.before_request  # type: ignore[misc]
+@app.before_request
 def log_requests() -> None:
     """Log incoming requests"""
     if request.method == "POST":
@@ -386,7 +387,7 @@ def log_requests() -> None:
             logging.info(f"JSON data: {request.get_json()}")
 
 
-@app.route("/")  # type: ignore[misc]
+@app.route("/")
 def home() -> Response:
     """Status endpoint"""
     return jsonify(
@@ -398,7 +399,7 @@ def home() -> Response:
     )
 
 
-@app.route("/print", methods=["POST"])  # type: ignore[misc]
+@app.route("/print", methods=["POST"])
 def print_label() -> Response:
     """Print label endpoint - compatible with Grocy"""
     try:
@@ -440,7 +441,7 @@ def print_label() -> Response:
         return Response(f"Error: {e}", 500)
 
 
-@app.route("/image", methods=["GET", "POST"])  # type: ignore[misc]
+@app.route("/image", methods=["GET", "POST"])
 def preview_image() -> Response:
     """Preview label image endpoint"""
     try:
@@ -474,8 +475,8 @@ def preview_image() -> Response:
         return Response(f"Error: {e}", 500)
 
 
-@app.route("/test", methods=["GET"])  # type: ignore[misc]
-def test_label() -> Response:
+@app.route("/test", methods=["GET"])
+def test_label() -> Union[Response, Tuple[Response, int]]:
     """Test endpoint with sample data"""
     test_data = {
         "product": "Test Product",
