@@ -12,9 +12,13 @@ from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import qrcode
+from dotenv import load_dotenv
 from escpos.printer import Network
 from flask import Flask, Response, jsonify, request
 from PIL import Image, ImageDraw, ImageFont
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Localization strings
 TRANSLATIONS = {
@@ -275,7 +279,7 @@ class GrocyThermalServer:
         )
 
         if purchased and has_real_expiry:
-            lines.append(f"{purchased} → {best_before}")
+            lines.append(f"{purchased} - {best_before}")
         elif has_real_expiry:
             lines.append(f"{self._translate('expires')}: {best_before}")
         elif purchased:
