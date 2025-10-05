@@ -8,6 +8,7 @@ Receives Grocy label requests and prints to ESC/P thermal printer.
 import io
 import logging
 import os
+from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import qrcode
@@ -146,6 +147,19 @@ class GrocyThermalServer:
         except (ValueError, TypeError):
             return str(quantity_unit_stock.get("name", ""))
 
+    def _is_far_future_date(self, date_str: str) -> bool:
+        """Check if date is more than 5 years in the future (no expiration)"""
+        if not date_str:
+            return False
+
+        try:
+            # Parse the date string (assuming YYYY-MM-DD format)
+            expiry_date = datetime.strptime(date_str, "%Y-%m-%d")
+            five_years_from_now = datetime.now() + timedelta(days=5 * 365)
+            return expiry_date > five_years_from_now
+        except (ValueError, TypeError):
+            return False
+
     def create_qr_code(
         self, data: str, size: int = 240
     ) -> Optional[Image.Image]:
@@ -218,11 +232,21 @@ class GrocyThermalServer:
         if params["amount"] and params["unit_name"]:
             lines.append(f"{params['amount']} {params['unit_name']}")
 
-        if params["best_before_date"]:
-            lines.append(f"Best: {params['best_before_date']}")
+        # Show date range if both dates are present
+        best_before = params["best_before_date"]
+        purchased = params["purchased_date"]
 
-        if params["purchased_date"]:
-            lines.append(f"Purchased: {params['purchased_date']}")
+        # Check if expiration is far in the future (>5 years = no expiration)
+        has_real_expiry = best_before and not self._is_far_future_date(
+            best_before
+        )
+
+        if purchased and has_real_expiry:
+            lines.append(f"{purchased} → {best_before}")
+        elif has_real_expiry:
+            lines.append(f"Expires: {best_before}")
+        elif purchased:
+            lines.append(f"Purchased: {purchased}")
 
         return lines, name_line_count
 
