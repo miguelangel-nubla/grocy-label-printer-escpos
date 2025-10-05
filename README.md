@@ -12,6 +12,7 @@ A Flask server that receives Grocy label requests and prints them to ESC/P therm
 - **ESC/P Support**: Works with ESC/P thermal printers via network
 - **QR Code Generation**: Automatically generates QR codes from Grocy barcodes
 - **Smart Layout**: QR code at top, product information below
+- **Multi-Language Support**: Label text in English, Spanish, French, German, and Italian
 - **Font Management**: Uses Roboto Bold fonts in multiple sizes
 - **Container Support**: Available as Docker images for easy deployment
 - **Multi-Architecture**: Supports AMD64 and ARM64 architectures
@@ -26,6 +27,7 @@ docker run -d \
   -p 5000:5000 \
   -e PRINTER_HOST=192.168.1.100 \
   -e PRINTER_PORT=9100 \
+  -e LANGUAGE=en \
   ghcr.io/miguelangel-nubla/grocy-label-printer-escpos:latest
 ```
 
@@ -54,6 +56,7 @@ python -m grocy_label_printer_escpos.server
 | `PRINTER_HOST` | `192.168.1.100` | IP address of the thermal printer |
 | `PRINTER_PORT` | `9100` | Port of the thermal printer |
 | `LABEL_WIDTH` | `384` | Width of labels in pixels |
+| `LANGUAGE` | `en` | Label language (`en`, `es`, `fr`, `de`, `it`) |
 | `SERVER_HOST` | `0.0.0.0` | Server bind address |
 | `SERVER_PORT` | `5000` | Server port |
 
@@ -172,6 +175,7 @@ services:
     environment:
       - PRINTER_HOST=192.168.1.100
       - PRINTER_PORT=9100
+      - LANGUAGE=en
     restart: unless-stopped
 ```
 
@@ -202,6 +206,8 @@ spec:
           value: "192.168.1.100"
         - name: PRINTER_PORT
           value: "9100"
+        - name: LANGUAGE
+          value: "en"
 ---
 apiVersion: v1
 kind: Service
