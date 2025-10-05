@@ -62,7 +62,7 @@ jobs:
       run: bandit -r src/ -f json
 
     - name: Check dependencies with safety
-      run: safety check
+      run: safety scan
 
   build:
     needs: [test, security]
