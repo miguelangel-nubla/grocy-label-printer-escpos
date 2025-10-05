@@ -1,34 +1,49 @@
 #!/usr/bin/env python3
 """
-Grocy Thermal Label Server
-Receives Grocy label requests and prints to ESC/P thermal printer
+Grocy Thermal Label Server.
+
+Receives Grocy label requests and prints to ESC/P thermal printer.
 """
 
+import io
 import logging
 import os
-from flask import Flask, Response, request, jsonify
-from PIL import Image, ImageDraw, ImageFont
-from escpos.printer import Network
+
 import qrcode
-import io
+from escpos.printer import Network
+from flask import Flask, Response, jsonify, request
+from PIL import Image, ImageDraw, ImageFont
+
 
 class GrocyThermalServer:
+    """Grocy thermal label server for ESC/P printers."""
+
     def __init__(self, printer_host=None, printer_port=None, label_width=None):
-        self.printer_host = printer_host or os.getenv('PRINTER_HOST', '192.168.1.100')
-        self.printer_port = int(printer_port or os.getenv('PRINTER_PORT', '9100'))
-        self.label_width = int(label_width or os.getenv('LABEL_WIDTH', '384'))
+        """Initialize the thermal server with printer configuration."""
+        self.printer_host = printer_host or os.getenv(
+            "PRINTER_HOST", "192.168.1.100"
+        )
+        self.printer_port = int(
+            printer_port or os.getenv("PRINTER_PORT", "9100")
+        )
+        self.label_width = int(label_width or os.getenv("LABEL_WIDTH", "384"))
         self.printer = None
 
         # Use pip-installed Roboto fonts with much larger sizes
         import font_roboto
+
         self.font_large = ImageFont.truetype(font_roboto.RobotoBold, 48)
         self.font_small = ImageFont.truetype(font_roboto.RobotoBold, 32)
 
     def connect_printer(self):
         """Connect to thermal printer"""
         try:
-            self.printer = Network(host=self.printer_host, port=self.printer_port, profile="Sunmi-V2")
-            logging.info(f"Connected to printer {self.printer_host}:{self.printer_port}")
+            self.printer = Network(
+                host=self.printer_host,
+                port=self.printer_port,
+                profile="Sunmi-V2",
+            )
+            logging.info("Connected to printer")
             return True
         except Exception as e:
             logging.error(f"Printer connection failed: {e}")
@@ -39,20 +54,26 @@ class GrocyThermalServer:
         logging.info(f"Received Grocy data: {data}")
 
         # Extract name from various fields
-        name_fields = ['product', 'battery', 'chore', 'recipe']
-        name = next((data.get(field, '') for field in name_fields if data.get(field)), '')
+        name_fields = ["product", "battery", "chore", "recipe"]
+        name = next(
+            (data.get(field, "") for field in name_fields if data.get(field)),
+            "",
+        )
 
         # Extract barcode
-        barcode = data.get('grocycode', '')
+        barcode = data.get("grocycode", "")
 
         # Extract stock entry data
-        stock_entry = data.get('stock_entry') or {}
+        stock_entry = data.get("stock_entry") or {}
         if not isinstance(stock_entry, dict):
             stock_entry = {}
 
-        # Check for special case: exclude amount and dates if container weight is present
-        stock_entry_userfields = data.get('stock_entry_userfields') or {}
-        container_weight = stock_entry_userfields.get('StockEntryContainerWeight')
+        # Check for special case: exclude amount and dates if container
+        # weight is present
+        stock_entry_userfields = data.get("stock_entry_userfields") or {}
+        container_weight = stock_entry_userfields.get(
+            "StockEntryContainerWeight"
+        )
 
         exclude_amount_and_dates = False
         if container_weight is not None:
@@ -63,39 +84,52 @@ class GrocyThermalServer:
                 pass
 
         # Extract dates and amount
-        best_before_date = '' if exclude_amount_and_dates else str(stock_entry.get('best_before_date', ''))
-        purchased_date = '' if exclude_amount_and_dates else str(stock_entry.get('purchased_date', ''))
-        amount = '' if exclude_amount_and_dates else str(stock_entry.get('amount', ''))
+        best_before_date = (
+            ""
+            if exclude_amount_and_dates
+            else str(stock_entry.get("best_before_date", ""))
+        )
+        purchased_date = (
+            ""
+            if exclude_amount_and_dates
+            else str(stock_entry.get("purchased_date", ""))
+        )
+        amount = (
+            ""
+            if exclude_amount_and_dates
+            else str(stock_entry.get("amount", ""))
+        )
 
         # Extract unit info
         quantity_unit_stock = (
-            data.get('quantity_unit_stock') if isinstance(data.get('quantity_unit_stock'), dict)
-            else data.get('details', {}).get('quantity_unit_stock', {})
+            data.get("quantity_unit_stock")
+            if isinstance(data.get("quantity_unit_stock"), dict)
+            else data.get("details", {}).get("quantity_unit_stock", {})
         )
 
         unit_name = self._get_unit_name(quantity_unit_stock, amount)
 
         return {
-            'name': name,
-            'barcode': barcode,
-            'best_before_date': best_before_date,
-            'purchased_date': purchased_date,
-            'amount': amount,
-            'unit_name': unit_name
+            "name": name,
+            "barcode": barcode,
+            "best_before_date": best_before_date,
+            "purchased_date": purchased_date,
+            "amount": amount,
+            "unit_name": unit_name,
         }
 
     def _get_unit_name(self, quantity_unit_stock, amount):
         """Get appropriate unit name (singular/plural)"""
-        if not quantity_unit_stock.get('name'):
-            return ''
+        if not quantity_unit_stock.get("name"):
+            return ""
 
         try:
             amount_float = float(amount) if amount else 0
-            if amount_float > 1 and quantity_unit_stock.get('name_plural'):
-                return str(quantity_unit_stock['name_plural'])
-            return str(quantity_unit_stock['name'])
+            if amount_float > 1 and quantity_unit_stock.get("name_plural"):
+                return str(quantity_unit_stock["name_plural"])
+            return str(quantity_unit_stock["name"])
         except (ValueError, TypeError):
-            return str(quantity_unit_stock.get('name', ''))
+            return str(quantity_unit_stock.get("name", ""))
 
     def create_qr_code(self, data, size=240):
         """Create QR code image - double size"""
@@ -115,50 +149,83 @@ class GrocyThermalServer:
         qr_img = qr_img.resize((size, size), Image.LANCZOS)
         return qr_img
 
+    def _wrap_text(self, text, font, max_width):
+        """Wrap text to fit within max_width using the given font."""
+        words = text.split()
+        lines = []
+        current_line: list = []
+
+        # Create temporary image for measuring text
+        temp_img = Image.new("L", (1, 1))
+        temp_draw = ImageDraw.Draw(temp_img)
+
+        for word in words:
+            test_line = " ".join(current_line + [word])
+            bbox = temp_draw.textbbox((0, 0), test_line, font=font)
+            text_width = bbox[2] - bbox[0]
+
+            if text_width <= max_width:
+                current_line.append(word)
+            else:
+                if current_line:
+                    lines.append(" ".join(current_line))
+                    current_line = [word]
+                else:
+                    # Single word is too long, add it anyway
+                    lines.append(word)
+
+        if current_line:
+            lines.append(" ".join(current_line))
+
+        return lines
+
     def create_label_image(self, params):
-        """Create label image from Grocy parameters - QR first, then text below"""
+        """Create label image from Grocy parameters.
+
+        QR code first, then text below.
+        """
         # Calculate label dimensions
         line_height = 35
         padding = 15
-        qr_size = 240    # Double size QR code
+        qr_size = 240  # Double size QR code
 
         # Count lines needed
         lines = []
-        if params['name']:
-            # Split long names - adjust for bigger fonts
-            name_words = params['name'].split()
-            if len(params['name']) > 20:
-                mid = len(name_words) // 2
-                lines.append(' '.join(name_words[:mid]))
-                lines.append(' '.join(name_words[mid:]))
-            else:
-                lines.append(params['name'])
+        name_line_count = 0
+        if params["name"]:
+            # Wrap text properly based on font width
+            max_text_width = self.label_width - (padding * 2)
+            name_lines = self._wrap_text(
+                params["name"], self.font_large, max_text_width
+            )
+            lines.extend(name_lines)
+            name_line_count = len(name_lines)
 
-        if params['amount'] and params['unit_name']:
+        if params["amount"] and params["unit_name"]:
             lines.append(f"{params['amount']} {params['unit_name']}")
 
-        if params['best_before_date']:
+        if params["best_before_date"]:
             lines.append(f"Best: {params['best_before_date']}")
 
-        if params['purchased_date']:
+        if params["purchased_date"]:
             lines.append(f"Purchased: {params['purchased_date']}")
 
         # Calculate image height - QR first, then text below
         text_height = len(lines) * line_height + padding
-        if params['barcode']:
+        if params["barcode"]:
             label_height = qr_size + padding * 2 + text_height
         else:
             label_height = text_height + padding
 
         # Create image
-        img = Image.new('L', (self.label_width, label_height), color=255)
+        img = Image.new("L", (self.label_width, label_height), color=255)
         draw = ImageDraw.Draw(img)
 
         current_y = padding
 
         # Add QR code at top center if barcode exists
-        if params['barcode']:
-            qr_img = self.create_qr_code(params['barcode'], qr_size)
+        if params["barcode"]:
+            qr_img = self.create_qr_code(params["barcode"], qr_size)
             if qr_img:
                 qr_x = (self.label_width - qr_size) // 2  # Center the QR code
                 img.paste(qr_img, (qr_x, current_y))
@@ -166,20 +233,21 @@ class GrocyThermalServer:
 
         # Add text lines below QR code
         for i, line in enumerate(lines):
-            font = self.font_large if i == 0 else self.font_small
-            if font:
-                # Center the text
-                bbox = draw.textbbox((0, 0), line, font=font)
-                text_width = bbox[2] - bbox[0]
-                text_x = (self.label_width - text_width) // 2
-                draw.text((text_x, current_y), line, fill=0, font=font)
-            else:
-                # Fallback without font
-                draw.text((padding, current_y), line, fill=0)
+            # Use large font for all name lines, small font for other info
+            font = self.font_large if i < name_line_count else self.font_small
+            # Center the text
+            bbox = draw.textbbox((0, 0), line, font=font)
+            text_width = bbox[2] - bbox[0]
+            text_x = (self.label_width - text_width) // 2
+            draw.text((text_x, current_y), line, fill=0, font=font)
 
-            # Add extra spacing after the title (first line)
-            if i == 0:
-                current_y += line_height + 20  # Extra 20px spacing after title
+            # Add extra spacing after the last name line
+            if i == name_line_count - 1:
+                current_y += line_height + 20  # Extra 20px spacing after name
+            elif i < name_line_count:
+                current_y += (
+                    line_height + 10
+                )  # Extra spacing between name lines
             else:
                 current_y += line_height
 
@@ -203,13 +271,15 @@ class GrocyThermalServer:
             self.printer.text("\n\n\n\n")  # Add some spacing after label
 
             # Feed paper to advance label past the cutter
-            #self.printer.ln(3)  # Feed 3 lines to move past cutter
+            # self.printer.ln(3)  # Feed 3 lines to move past cutter
 
             # Close the printer connection to flush the buffer
-            if hasattr(self.printer, 'close'):
+            if hasattr(self.printer, "close"):
                 self.printer.close()
 
-            logging.info(f"Successfully sent label to printer for: {params['name']}")
+            logging.info(
+                f"Successfully sent label to printer for: {params['name']}"
+            )
             return True
 
         except Exception as e:
@@ -218,31 +288,28 @@ class GrocyThermalServer:
         finally:
             # Ensure connection is closed
             try:
-                if self.printer and hasattr(self.printer, 'close'):
+                if self.printer and hasattr(self.printer, "close"):
                     self.printer.close()
-            except:
-                pass
+            except Exception as e:
+                logging.debug(f"Error closing printer connection: {e}")
             self.printer = None
+
 
 # Flask app setup
 app = Flask(__name__)
 thermal_server = GrocyThermalServer()
 
 # Configure logging
-log_level = os.getenv('LOG_LEVEL', 'INFO').upper()
-log_file = os.getenv('LOG_FILE', '/app/logs/grocy_server.log')
+log_level = os.getenv("LOG_LEVEL", "INFO").upper()
+log_file = os.getenv("LOG_FILE", "grocy_server.log")
 
-# Ensure log directory exists
-os.makedirs(os.path.dirname(log_file), exist_ok=True)
 
 logging.basicConfig(
     level=getattr(logging, log_level),
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler(log_file),
-        logging.StreamHandler()
-    ]
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    handlers=[logging.FileHandler(log_file), logging.StreamHandler()],
 )
+
 
 @app.before_request
 def log_requests():
@@ -252,14 +319,18 @@ def log_requests():
         if request.is_json:
             logging.info(f"JSON data: {request.get_json()}")
 
+
 @app.route("/")
 def home():
     """Status endpoint"""
-    return jsonify({
-        "status": "running",
-        "printer": f"{thermal_server.printer_host}:{thermal_server.printer_port}",
-        "service": "Grocy Thermal Label Server"
-    })
+    return jsonify(
+        {
+            "status": "running",
+            "printer": f"{thermal_server.printer_host}: {thermal_server.printer_port}",  # noqa: E501
+            "service": "Grocy Thermal Label Server",
+        }
+    )
+
 
 @app.route("/print", methods=["POST"])
 def print_label():
@@ -284,7 +355,7 @@ def print_label():
         logging.info(f"Extracted params: {params}")
 
         # Validate required fields
-        if not params['name']:
+        if not params["name"]:
             logging.error("Product name required")
             return Response("Product name required", 400)
 
@@ -301,6 +372,7 @@ def print_label():
     except Exception as e:
         logging.error(f"Print endpoint error: {e}")
         return Response(f"Error: {e}", 500)
+
 
 @app.route("/image", methods=["GET", "POST"])
 def preview_image():
@@ -335,6 +407,7 @@ def preview_image():
         logging.error(f"Image endpoint error: {e}")
         return Response(f"Error: {e}", 500)
 
+
 @app.route("/test", methods=["GET"])
 def test_label():
     """Test endpoint with sample data"""
@@ -344,12 +417,9 @@ def test_label():
         "stock_entry": {
             "best_before_date": "2024-12-31",
             "purchased_date": "2024-10-05",
-            "amount": "2"
+            "amount": "2",
         },
-        "quantity_unit_stock": {
-            "name": "piece",
-            "name_plural": "pieces"
-        }
+        "quantity_unit_stock": {"name": "piece", "name_plural": "pieces"},
     }
 
     params = thermal_server.extract_grocy_params(test_data)
@@ -360,21 +430,25 @@ def test_label():
     else:
         return jsonify({"status": "error", "message": "Print failed"}), 500
 
+
 def main():
     """Main entry point for the CLI script"""
-    host = os.getenv('SERVER_HOST', '0.0.0.0')
-    port = int(os.getenv('SERVER_PORT', '5000'))
-    debug = os.getenv('DEBUG', 'False').lower() == 'true'
+    host = os.getenv("SERVER_HOST", "0.0.0.0")  # nosec B104
+    port = int(os.getenv("SERVER_PORT", "5000"))
+    debug = os.getenv("DEBUG", "False").lower() == "true"
 
     print("Grocy Thermal Label Server")
     print("=" * 30)
-    print(f"Printer: {thermal_server.printer_host}:{thermal_server.printer_port}")
+    print(
+        f"Printer: {thermal_server.printer_host}: {thermal_server.printer_port}"  # noqa: E501
+    )
     print("Endpoints:")
     print("  POST /print - Print Grocy label")
     print("  GET/POST /image - Preview label image")
     print("  GET /test - Print test label")
     print("  GET / - Server status")
-    print(f"\nStarting server on http://{host}:{port}")
+    server_url = f"http://{host}:{port}"  # noqa: E231
+    print(f"\nStarting server on {server_url}")
 
     app.run(host=host, port=port, debug=debug)
 
