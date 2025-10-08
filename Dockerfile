@@ -45,4 +45,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:${SERVER_PORT:-5000}/ || exit 1
 
 # Run the application with gunicorn
-CMD gunicorn --bind 0.0.0.0:${SERVER_PORT:-5000} --workers 2 --timeout 120 --access-logfile - --error-logfile - grocy_label_printer_escpos.server:app
+CMD gunicorn --bind 0.0.0.0:${SERVER_PORT:-5000} --workers 2 --timeout 120 --access-logfile /app/logs/access.log --error-logfile - grocy_label_printer_escpos.server:app
