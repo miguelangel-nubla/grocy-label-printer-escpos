@@ -153,6 +153,9 @@ class GrocyThermalServer:
 
         unit_name = self._get_unit_name(quantity_unit_stock, amount)
 
+        # Extract note
+        note = str(stock_entry.get("note", ""))
+
         return {
             "name": name,
             "barcode": barcode,
@@ -160,6 +163,7 @@ class GrocyThermalServer:
             "purchased_date": purchased_date,
             "amount": amount,
             "unit_name": unit_name,
+            "note": note,
         }
 
     def _get_unit_name(
@@ -284,6 +288,14 @@ class GrocyThermalServer:
             lines.append(f"{self._translate('expires')}: {best_before}")
         elif purchased:
             lines.append(f"{self._translate('purchased')}: {purchased}")
+
+        if params.get("note"):
+            # Wrap note text
+            max_text_width = self.label_width - (padding * 2)
+            note_lines = self._wrap_text(
+                params["note"], self.font_small, max_text_width
+            )
+            lines.extend(note_lines)
 
         return lines, name_line_count
 
@@ -551,8 +563,8 @@ def preview_image() -> Response:
 
 
 @app.route("/test", methods=["GET"])
-def test_label() -> Union[Response, Tuple[Response, int]]:
-    """Test endpoint with sample data"""
+def test_label() -> Response:
+    """Test endpoint with sample data - returns image preview"""
     test_data = {
         "product": "Test Product",
         "grocycode": "12345",
@@ -560,17 +572,22 @@ def test_label() -> Union[Response, Tuple[Response, int]]:
             "best_before_date": "2024-12-31",
             "purchased_date": "2024-10-05",
             "amount": "2",
+            "note": "This is a test note.",
         },
         "quantity_unit_stock": {"name": "piece", "name_plural": "pieces"},
     }
 
     params = thermal_server.extract_grocy_params(test_data)
-    success = thermal_server.print_label(params)
+    
+    # Create label image
+    label_img = thermal_server.create_label_image(params)
 
-    if success:
-        return jsonify({"status": "success", "message": "Test label printed"})
-    else:
-        return jsonify({"status": "error", "message": "Print failed"}), 500
+    # Return image as PNG
+    buf = io.BytesIO()
+    label_img.save(buf, format="PNG")
+    buf.seek(0)
+
+    return Response(buf.getvalue(), mimetype="image/png")
 
 
 def main() -> None:
@@ -587,7 +604,7 @@ def main() -> None:
     print("Endpoints:")
     print("  POST /print - Print Grocy label")
     print("  GET/POST /image - Preview label image")
-    print("  GET /test - Print test label")
+    print("  GET /test - Preview test label")
     print("  GET / - Server status")
     server_url = f"http://{host}:{port}"  # noqa: E231
     print(f"\nStarting Flask development server on {server_url}")
