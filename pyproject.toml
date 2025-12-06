@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "grocy-label-printer-escpos"
-version = "0.7.0"
+version = "0.7.1"
 description = "Flask server that receives Grocy label requests and prints to ESC/P thermal printers"
 readme = "README.md"
 license = {text = "MIT"}
