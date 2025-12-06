@@ -130,17 +130,19 @@ class GrocyThermalServer:
         best_before_date = (
             ""
             if exclude_amount_and_dates
-            else str(stock_entry.get("best_before_date", ""))
+            else str(stock_entry.get("best_before_date") or "")
         )
         purchased_date = (
             ""
             if exclude_amount_and_dates
-            else str(stock_entry.get("purchased_date", ""))
+            else str(stock_entry.get("purchased_date") or "")
         )
+        
+        val = stock_entry.get("amount")
         amount = (
             ""
             if exclude_amount_and_dates
-            else str(stock_entry.get("amount", ""))
+            else (str(val) if val is not None else "")
         )
 
         # Extract unit info
@@ -154,7 +156,8 @@ class GrocyThermalServer:
         unit_name = self._get_unit_name(quantity_unit_stock, amount)
 
         # Extract note
-        note = str(stock_entry.get("note", ""))
+        val = stock_entry.get("note")
+        note = str(val) if val is not None else ""
 
         return {
             "name": name,
