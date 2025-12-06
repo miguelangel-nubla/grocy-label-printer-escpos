@@ -9,7 +9,7 @@ import io
 import logging
 import os
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple
 
 import qrcode
 from dotenv import load_dotenv
@@ -137,7 +137,7 @@ class GrocyThermalServer:
             if exclude_amount_and_dates
             else str(stock_entry.get("purchased_date") or "")
         )
-        
+
         val = stock_entry.get("amount")
         amount = (
             ""
@@ -581,7 +581,7 @@ def test_label() -> Response:
     }
 
     params = thermal_server.extract_grocy_params(test_data)
-    
+
     # Create label image
     label_img = thermal_server.create_label_image(params)
 
