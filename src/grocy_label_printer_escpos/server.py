@@ -386,7 +386,7 @@ class GrocyThermalServer:
         # Calculate label dimensions
         line_height = 35
         padding = 15
-        qr_size = 240  # Double size QR code
+        qr_size = 350  # Double size QR code
 
         # Build text lines
         lines, name_line_count = self._build_text_lines(params, padding)
@@ -492,17 +492,20 @@ def home() -> Response:
     )
 
 
-@app.route("/print", methods=["POST"])
+@app.route("/print", methods=["GET", "POST"])
 def print_label() -> Response:
     """Print label endpoint - compatible with Grocy"""
     try:
         logging.info("Print endpoint called")
 
         # Get data from request
-        if request.is_json:
-            data = request.get_json()
+        if request.method == "POST":
+            if request.is_json:
+                data = request.get_json()
+            else:
+                data = request.form.to_dict()
         else:
-            data = request.form.to_dict()
+            data = request.args.to_dict()
 
         logging.info(f"Received data: {data}")
 
@@ -608,7 +611,7 @@ def main() -> None:
         f"Printer: {thermal_server.printer_host}: {thermal_server.printer_port}"  # noqa: E501
     )
     print("Endpoints:")
-    print("  POST /print - Print Grocy label")
+    print("  GET/POST /print - Print Grocy label")
     print("  GET/POST /image - Preview label image")
     print("  GET /test - Preview test label")
     print("  GET / - Server status")
