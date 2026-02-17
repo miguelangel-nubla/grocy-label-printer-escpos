@@ -325,7 +325,10 @@ class GrocyThermalServer:
         # Use the larger font height as bottom padding for complete rendering
         bottom_padding = int(max(large_font_height, small_font_height))
 
-        text_height = len(lines) * line_height + padding + bottom_padding
+        if lines:
+            text_height = len(lines) * line_height + padding + bottom_padding
+        else:
+            text_height = 0
         if params["barcode"]:
             return qr_size + padding * 2 + text_height
         else:
@@ -512,9 +515,9 @@ def print_label() -> Response:
         logging.info(f"Extracted params: {params}")
 
         # Validate required fields
-        if not params["name"]:
-            logging.error("Product name required")
-            return Response("Product name required", 400)
+        if not params["name"] and not params["barcode"]:
+            logging.error("Product name or grocycode required")
+            return Response("Product name or grocycode required", 400)
 
         # Print label
         logging.info("Calling print_label function")
