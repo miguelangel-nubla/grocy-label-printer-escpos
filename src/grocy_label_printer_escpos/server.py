@@ -9,7 +9,7 @@ import io
 import logging
 import os
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, cast
 
 import qrcode
 from dotenv import load_dotenv
@@ -224,7 +224,7 @@ class GrocyThermalServer:
         # Handle both PIL and PyPNG images
         if hasattr(qr_img, "resize"):
             qr_img = qr_img.resize((size, size), Image.Resampling.LANCZOS)
-        return qr_img  # type: ignore[return-value]
+        return cast(Image.Image, qr_img)
 
     def _wrap_text(
         self, text: str, font: ImageFont.FreeTypeFont, max_width: int

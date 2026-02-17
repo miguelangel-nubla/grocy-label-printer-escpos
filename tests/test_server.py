@@ -54,11 +54,16 @@ def test_print_endpoint_missing_data(client: FlaskClient) -> None:
     assert response.status_code == 400
 
 
-def test_print_endpoint_missing_product_name(client: FlaskClient) -> None:
-    """Test print endpoint with missing product name"""
+@patch("grocy_label_printer_escpos.server.GrocyThermalServer.print_label")
+def test_print_endpoint_only_grocycode(
+    mock_print: Mock, client: FlaskClient
+) -> None:
+    """Test print endpoint with only grocycode (no product name)"""
+    mock_print.return_value = True
     data = {"grocycode": "123"}
     response = client.post("/print", json=data)
-    assert response.status_code == 400
+    assert response.status_code == 200
+    assert response.data == b"OK"
 
 
 @patch("grocy_label_printer_escpos.server.GrocyThermalServer.print_label")
